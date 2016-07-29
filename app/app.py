@@ -17,7 +17,7 @@ import math
 
 from utils import eprint
 from database import db
-from models import User
+from models import User, Word, Definition
 
 from invalid_usage import InvalidUsage
 
@@ -134,7 +134,25 @@ def user(id):
         'screen_name': user.screen_name
     })
 
+@app.route('/word/add/<word>')
+def add_word(word):
+    try:
+        existing_word = db.session.query(Word).filter_by(title=word).one()
+        return jsonify({'error': 'Word already exists'})
+    except NoResultFound as ex:
+        new_word = Word()
+        word.title = word
+        db.session.add(new_word)
+        db.session.commit()
+        return jsonify({
+            'user_id': user.twitter_id,
+            'screen_name': user.screen_name
+        })
 
+@app.route('/words')
+def get_words():
+    words = Word.query.all()
+    return jsonify(words)
 
 
 def create_tables():

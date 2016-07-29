@@ -23,7 +23,7 @@ class Word(db.Model):
     __tablename__ = 'words'
 
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.Text)
+    title = db.Column(db.Text, unique=True)
 
     definitions = relationship("Definition")
 
