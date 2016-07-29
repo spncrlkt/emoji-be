@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+import app
 
 db_uri = 'postgresql+psycopg2://postgres:postgres@postgres:5432'
 engine = create_engine(db_uri+'/template1')
@@ -7,6 +8,8 @@ engine = create_engine(db_uri+'/template1')
 def create_dbs():
     create_db_if_not_exists('test')
     create_db_if_not_exists('dev')
+    with app.app.app_context():
+        app.create_tables()
     return 'created dbs'
 
 def create_db_if_not_exists(db_name):

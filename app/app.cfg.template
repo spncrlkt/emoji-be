@@ -1,2 +1,4 @@
-DEBUG = 
-SECRET_KEY = 
+DEBUG = True
+SECRET_KEY = ""
+TW_KEY = ""
+TW_SECRET = ""
