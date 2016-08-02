@@ -27,6 +27,9 @@ class Word(db.Model):
 
     definitions = relationship("Definition")
 
+    def as_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 
 class Definition(db.Model):
     __tablename__ = 'definitions'
@@ -38,3 +41,7 @@ class Definition(db.Model):
 
     word_id = db.Column(db.Integer, db.ForeignKey('words.id'))
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+    def as_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+

@@ -9,7 +9,9 @@ from flask import g, url_for,  redirect, render_template
 from flask_oauthlib.client import OAuth
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS, cross_origin
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
+
 from werkzeug.utils import secure_filename
 
 from random import random
@@ -141,18 +143,56 @@ def add_word(word):
         return jsonify({'error': 'Word already exists'})
     except NoResultFound as ex:
         new_word = Word()
-        word.title = word
+        new_word.title = word
         db.session.add(new_word)
         db.session.commit()
-        return jsonify({
-            'user_id': user.twitter_id,
-            'screen_name': user.screen_name
-        })
+        return jsonify({'id': new_word.id})
 
 @app.route('/words')
 def get_words():
     words = Word.query.all()
-    return jsonify(words)
+    res = []
+    for word in words:
+        word_res = {}
+        word_res['id'] = word.id
+        word_res['title'] = word.title
+        word_res['definitions'] = list(map(lambda x : x.as_dict(), word.definitions))
+        res.append(word_res)
+
+    return jsonify({'words': res})
+
+@app.route('/word/<title>')
+def get_word(title):
+    try:
+        word = db.session.query(Word).\
+            options(joinedload('definitions')).\
+            filter_by(title=title).one()
+    except NoResultFound as ex:
+        return jsonify({'error': 'Word does not exist'})
+
+    res_word = word.as_dict()
+    res_word['definitions'] = list(map(lambda x : x.as_dict(), word.definitions))
+    return jsonify({ 'word': res_word })
+
+@app.route('/word/<title>/definition', methods=['POST'])
+def add_definition(title):
+    body = request.get_json()
+    try:
+        word = db.session.query(Word).filter_by(title=title).one()
+    except NoResultFound as ex:
+        return jsonify({'error': 'Word does not exist'})
+
+    posted_definition = body.get('definition')
+    if not posted_definition:
+        return jsonify({'error': 'Definition not supplied'})
+
+
+    definition = Definition()
+    definition.word_id = word.id
+    definition.definition = definition
+    db.session.add(definition)
+    db.session.commit()
+    return jsonify({'definition': { 'id': definition.id}})
 
 
 def create_tables():
