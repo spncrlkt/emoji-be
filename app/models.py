@@ -13,10 +13,15 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     twitter_id = db.Column(db.Integer, index=True, unique=True)
     screen_name = db.Column(db.Text)
+    name = db.Column(db.Text)
+    profile_image_url = db.Column(db.Text)
     oauth_token = db.Column(db.Text)
     oauth_token_secret = db.Column(db.Text)
 
-    definitions = relationship("Definition")
+    definitions = relationship("Definition", back_populates="user")
+
+    def as_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
 class Word(db.Model):
@@ -25,7 +30,7 @@ class Word(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.Text, unique=True)
 
-    definitions = relationship("Definition")
+    definitions = relationship("Definition", back_populates="word")
 
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -40,7 +45,10 @@ class Definition(db.Model):
     downvotes = db.Column(db.Integer, default=0)
 
     word_id = db.Column(db.Integer, db.ForeignKey('words.id'))
+    word = relationship("Word", back_populates="definitions")
+
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user = relationship("User", back_populates="definitions")
 
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}

@@ -12,12 +12,14 @@ from flask_cors import CORS, cross_origin
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
+import tweepy
+
 from werkzeug.utils import secure_filename
 
 from random import random
 import math
 
-from utils import eprint
+from utils import eprint, epprint
 from database import db
 from models import User, Word, Definition
 
@@ -110,15 +112,35 @@ def oauthorized():
     if resp is None:
         return 'You denied the request to sign in.'
     else:
-        eprint(resp)
         try:
             user = db.session.query(User).filter_by(twitter_id=resp['user_id']).one()
         except NoResultFound as ex:
             user = User()
+        # Set OAuth info
         user.twitter_id = resp['user_id']
         user.screen_name = resp['screen_name']
         user.oauth_token = resp['oauth_token']
         user.oauth_token_secret = resp['oauth_token_secret']
+
+        # get addl user info
+        consumer_key=app.config.get('TW_KEY'),
+        consumer_secret=app.config.get('TW_SECRET'),
+
+        auth = tweepy.OAuthHandler(consumer_key[0], consumer_secret[0])
+        auth.set_access_token(
+            resp['oauth_token'],
+            resp['oauth_token_secret']
+        )
+
+        api = tweepy.API(auth)
+        twitter_user = api.get_user(resp['user_id'])
+        eprint('\n\n**********')
+        epprint(twitter_user)
+        eprint('\n\n**********')
+
+        user.profile_image_url = twitter_user.profile_image_url
+        user.name = twitter_user.name
+
         db.session.add(user)
         db.session.commit()
     next_url = request.args.get('next') + '/#/login/' + resp.get('user_id')
@@ -171,7 +193,17 @@ def get_word(title):
         return jsonify({'error': 'Word does not exist'})
 
     res_word = word.as_dict()
-    res_word['definitions'] = list(map(lambda x : x.as_dict(), word.definitions))
+
+    def format_definition(definition):
+        formatted = definition.as_dict()
+        user = definition.user.as_dict()
+        del user['oauth_token']
+        del user['oauth_token_secret']
+        formatted['user'] = user
+        return formatted
+
+
+    res_word['definitions'] = list(map(format_definition, word.definitions))
     return jsonify({ 'word': res_word })
 
 @app.route('/word/<title>/definition', methods=['POST'])
@@ -189,7 +221,7 @@ def add_definition(title):
 
     definition = Definition()
     definition.word_id = word.id
-    definition.definition = definition
+    definition.definition = posted_definition
     db.session.add(definition)
     db.session.commit()
     return jsonify({'definition': { 'id': definition.id}})
