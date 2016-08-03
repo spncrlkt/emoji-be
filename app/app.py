@@ -4,6 +4,7 @@ import inspect
 import os
 import json
 import requests
+import re
 from flask import Flask, jsonify, request, session
 from flask import g, url_for,  redirect, render_template
 from flask_oauthlib.client import OAuth
@@ -11,6 +12,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS, cross_origin
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
+
+from urllib.parse import urlparse, quote_plus
 
 import tweepy
 
@@ -97,6 +100,7 @@ def before_request():
 @app.route('/login')
 def login():
     callback_url = url_for('oauthorized', next=request.args.get('next'))
+    eprint(request.args.get('next'))
     return twitter.authorize(callback=callback_url or request.referrer or None)
 
 
@@ -143,7 +147,12 @@ def oauthorized():
 
         db.session.add(user)
         db.session.commit()
-    next_url = request.args.get('next') + '/#/login/' + resp.get('user_id')
+
+    url = urlparse(request.args.get('next'))
+    m = re.search('#(.+)\?', request.args.get('next'))
+    client_next_route = m.group(1)
+    host = '{}://{}'.format(url.scheme, url.netloc)
+    next_url = host + '/#/login/' + resp.get('user_id') + '/' + quote_plus(client_next_route)
     return redirect(next_url)
 
 @app.route('/user/<id>')
