@@ -192,6 +192,18 @@ def get_words():
 
     return jsonify({'words': res})
 
+@app.route('/users')
+def get_users():
+    users = User.query.all()
+    res = []
+    for user in users:
+        user_res = {}
+        user_res['id'] = user.id
+        user_res['name'] = user.name
+        res.append(user_res)
+
+    return jsonify({'users': res})
+
 @app.route('/word/<title>')
 def get_word(title):
     try:
@@ -223,6 +235,15 @@ def add_definition(title):
     except NoResultFound as ex:
         return jsonify({'error': 'Word does not exist'})
 
+    posted_user_id = body.get('userId')
+    if not posted_user_id:
+        return jsonify({'error': 'User ID not supplied'})
+
+    try:
+        user = db.session.query(User).filter_by(id=posted_user_id).one()
+    except NoResultFound as ex:
+        return jsonify({'error': 'User does not exist'})
+
     posted_definition = body.get('definition')
     if not posted_definition:
         return jsonify({'error': 'Definition not supplied'})
@@ -230,6 +251,7 @@ def add_definition(title):
 
     definition = Definition()
     definition.word_id = word.id
+    definition.user_id = user.id
     definition.definition = posted_definition
     db.session.add(definition)
     db.session.commit()
