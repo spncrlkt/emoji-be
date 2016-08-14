@@ -19,6 +19,7 @@ class User(db.Model):
     oauth_token_secret = db.Column(db.Text)
 
     definitions = relationship("Definition", back_populates="user")
+    votes = relationship("Vote", back_populates="user")
 
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -41,8 +42,6 @@ class Definition(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     definition = db.Column(db.Text)
-    upvotes = db.Column(db.Integer, default=0)
-    downvotes = db.Column(db.Integer, default=0)
 
     word_id = db.Column(db.Integer, db.ForeignKey('words.id'))
     word = relationship("Word", back_populates="definitions")
@@ -50,6 +49,20 @@ class Definition(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     user = relationship("User", back_populates="definitions")
 
+    votes = relationship("Vote", back_populates="definition")
+
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+class Vote(db.Model):
+    __tablename__ = 'votes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    vote = db.Column(db.Integer) # 1/-1
+
+    definition_id = db.Column(db.Integer, db.ForeignKey('definitions.id'))
+    definition = relationship("Definition", back_populates="votes")
+
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user = relationship("User", back_populates="votes")
 

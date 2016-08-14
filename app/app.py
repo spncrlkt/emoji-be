@@ -24,7 +24,7 @@ import math
 
 from utils import eprint, epprint
 from database import db
-from models import User, Word, Definition
+from models import User, Word, Definition, Vote
 
 from invalid_usage import InvalidUsage
 
@@ -100,7 +100,6 @@ def before_request():
 @app.route('/login')
 def login():
     callback_url = url_for('oauthorized', next=request.args.get('next'))
-    eprint(request.args.get('next'))
     return twitter.authorize(callback=callback_url or request.referrer or None)
 
 
@@ -138,9 +137,6 @@ def oauthorized():
 
         api = tweepy.API(auth)
         twitter_user = api.get_user(resp['user_id'])
-        eprint('\n\n**********')
-        epprint(twitter_user)
-        eprint('\n\n**********')
 
         user.profile_image_url = twitter_user.profile_image_url
         user.name = twitter_user.name
@@ -162,9 +158,21 @@ def user(id):
     except NoResultFound as ex:
         return jsonify({'error': 'No User Found'})
 
+    votes = {}
+    for vote in user.votes:
+        votes[vote.definition_id] = vote.vote
+
+    definitions = {}
+    for definition in user.definitions:
+        definitions[definition.id] = definition.definition
+
     return jsonify({
-        'user_id': user.twitter_id,
-        'screen_name': user.screen_name
+        'twitter': {
+            'user_id': user.twitter_id,
+            'screen_name': user.screen_name
+        },
+        'votes': votes,
+        'definitions': definitions
     })
 
 @app.route('/word/add/<word>')
@@ -198,7 +206,7 @@ def get_users():
     res = []
     for user in users:
         user_res = {}
-        user_res['id'] = user.id
+        user_res['id'] = user.twitter_id
         user_res['name'] = user.name
         res.append(user_res)
 
@@ -217,14 +225,31 @@ def get_word(title):
 
     def format_definition(definition):
         formatted = definition.as_dict()
+
         user = definition.user.as_dict()
         del user['oauth_token']
         del user['oauth_token_secret']
         formatted['user'] = user
+
+        votes = definition.votes
+        upvotes = 0
+        downvotes = 0
+        for vote in votes:
+            if vote.vote is 1:
+                upvotes += 1
+            else:
+                downvotes += 1
+        formatted['upvotes'] = upvotes
+        formatted['downvotes'] = downvotes
+
         return formatted
 
+    definitions = {}
+    for definition in word.definitions:
+        formatted = format_definition(definition)
+        definitions[definition.id] = formatted
 
-    res_word['definitions'] = list(map(format_definition, word.definitions))
+    res_word['definitions'] = definitions
     return jsonify({ 'word': res_word })
 
 @app.route('/word/<title>/definition', methods=['POST'])
@@ -240,9 +265,16 @@ def add_definition(title):
         return jsonify({'error': 'User ID not supplied'})
 
     try:
-        user = db.session.query(User).filter_by(id=posted_user_id).one()
+        user = db.session.query(User).filter_by(twitter_id=posted_user_id).one()
     except NoResultFound as ex:
         return jsonify({'error': 'User does not exist'})
+
+    try:
+        definition = db.session.query(Definition)\
+            .filter_by(user_id=user.id).filter_by(word_id=word.id)
+        return jsonify({'error': 'Definition already exists'})
+    except NoResultFound as ex:
+        pass
 
     posted_definition = body.get('definition')
     if not posted_definition:
@@ -256,6 +288,34 @@ def add_definition(title):
     db.session.add(definition)
     db.session.commit()
     return jsonify({'definition': { 'id': definition.id}})
+
+@app.route('/definition/<definition_id>/vote', methods=['POST'])
+def vote(definition_id):
+    body = request.get_json()
+
+    try:
+        definition = db.session.query(Definition).filter_by(id=definition_id).one()
+    except NoResultFound as ex:
+        return jsonify({'error': 'Definition does not exist'})
+
+    try:
+        user = db.session.query(User).filter_by(twitter_id=body.get('userId')).one()
+    except NoResultFound as ex:
+        return jsonify({'error': 'User does not exist'})
+
+    try:
+        vote = db.session.query(Vote).filter_by(definition_id=definition.id).\
+                filter_by(user_id=user.id).one()
+    except NoResultFound as ex:
+        vote = Vote()
+        vote.definition_id = definition.id
+        vote.user_id = user.id
+
+    vote.vote = 1 if body.get('isUpvote') else -1
+    db.session.add(vote)
+    db.session.commit()
+
+    return jsonify({'vote': { 'id': vote.id}})
 
 
 def create_tables():
@@ -281,4 +341,4 @@ def all_error_handler(error):
     return 'Error', 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=True, host='0.0.0.0', threaded=True)
