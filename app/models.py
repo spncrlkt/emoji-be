@@ -49,7 +49,7 @@ class Definition(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     user = relationship("User", back_populates="definitions")
 
-    votes = relationship("Vote", back_populates="definition")
+    votes = relationship("Vote", back_populates="definition",  cascade="all, delete-orphan")
 
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}

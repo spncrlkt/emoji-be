@@ -271,7 +271,7 @@ def add_definition(title):
 
     try:
         definition = db.session.query(Definition)\
-            .filter_by(user_id=user.id).filter_by(word_id=word.id)
+            .filter_by(user_id=user.id).filter_by(word_id=word.id).one()
         return jsonify({'error': 'Definition already exists'})
     except NoResultFound as ex:
         pass
@@ -288,6 +288,34 @@ def add_definition(title):
     db.session.add(definition)
     db.session.commit()
     return jsonify({'definition': { 'id': definition.id}})
+
+@app.route('/word/<title>/definition/<definition_id>/delete', methods=['POST'])
+def delete_definition(title, definition_id):
+    body = request.get_json()
+    try:
+        word = db.session.query(Word).filter_by(title=title).one()
+    except NoResultFound as ex:
+        return jsonify({'error': 'Word does not exist'})
+
+    posted_user_id = body.get('userId')
+    if not posted_user_id:
+        return jsonify({'error': 'User ID not supplied'})
+
+    try:
+        user = db.session.query(User).filter_by(twitter_id=posted_user_id).one()
+    except NoResultFound as ex:
+        return jsonify({'error': 'User does not exist'})
+
+    try:
+        definition = db.session.query(Definition).filter_by(id=definition_id).one()
+    except NoResultFound as ex:
+        return jsonify({'error': 'Definition does not exist'})
+
+    db.session.delete(definition)
+    db.session.commit()
+
+    return jsonify({'deleted_definition': { 'id': definition_id}})
+
 
 @app.route('/definition/<definition_id>/vote', methods=['POST'])
 def vote(definition_id):
