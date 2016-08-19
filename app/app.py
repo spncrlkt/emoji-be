@@ -22,7 +22,7 @@ from werkzeug.utils import secure_filename
 from random import random
 import math
 
-from utils import eprint, epprint
+from utils import encode_value, eprint, epprint
 from database import db
 from models import User, Word, Definition, Vote
 
@@ -148,15 +148,31 @@ def oauthorized():
     m = re.search('#(.+)\?', request.args.get('next'))
     client_next_route = m.group(1)
     host = '{}://{}'.format(url.scheme, url.netloc)
-    next_url = host + '/#/login/' + resp.get('user_id') + '/' + quote_plus(client_next_route)
+    token = encode_value(
+        resp['oauth_token'],
+        app.config.get('AUTH_SALT')
+    )
+    next_url = host + '/#/login/' + resp.get('user_id') + '/' +\
+            token + '/' + quote_plus(client_next_route)
     return redirect(next_url)
 
-@app.route('/user/<id>')
-def user(id):
+@app.route('/user/<id>/<auth_token>')
+def user(id, auth_token):
+    error = None
     try:
         user = db.session.query(User).filter_by(twitter_id=id).one()
     except NoResultFound as ex:
-        return jsonify({'error': 'No User Found'})
+        error = 'Auth Error 1'
+    encoded_token = encode_value(
+        user.oauth_token,
+        app.config.get('AUTH_SALT')
+    )
+    if auth_token != encoded_token:
+        error = 'Auth Error 2'
+
+    if error:
+        return jsonify({'error': error})
+
 
     votes = {}
     for vote in user.votes:
@@ -168,8 +184,8 @@ def user(id):
 
     return jsonify({
         'twitter': {
-            'user_id': user.twitter_id,
-            'screen_name': user.screen_name
+            'userId': user.twitter_id,
+            'screenName': user.screen_name
         },
         'votes': votes,
         'definitions': definitions
@@ -181,11 +197,14 @@ def add_word(word):
         existing_word = db.session.query(Word).filter_by(title=word).one()
         return jsonify({'error': 'Word already exists'})
     except NoResultFound as ex:
-        new_word = Word()
-        new_word.title = word
-        db.session.add(new_word)
-        db.session.commit()
-        return jsonify({'id': new_word.id})
+        try:
+            new_word = Word()
+            new_word.title = word
+            db.session.add(new_word)
+            db.session.commit()
+            return jsonify({'id': new_word.id})
+        except ValueError as ex:
+            return jsonify({'error': str(ex)})
 
 @app.route('/words')
 def get_words():
@@ -267,7 +286,15 @@ def add_definition(title):
     try:
         user = db.session.query(User).filter_by(twitter_id=posted_user_id).one()
     except NoResultFound as ex:
-        return jsonify({'error': 'User does not exist'})
+        return jsonify({'error': 'Auth Error'})
+
+    posted_auth_token = body.get('authToken')
+    token = encode_value(
+        user.oauth_token,
+        app.config.get('AUTH_SALT')
+    )
+    if token != posted_auth_token:
+        return jsonify({'error': 'Auth Error'})
 
     try:
         definition = db.session.query(Definition)\
@@ -304,7 +331,15 @@ def delete_definition(title, definition_id):
     try:
         user = db.session.query(User).filter_by(twitter_id=posted_user_id).one()
     except NoResultFound as ex:
-        return jsonify({'error': 'User does not exist'})
+        return jsonify({'error': 'Auth Error'})
+
+    posted_auth_token = body.get('authToken')
+    token = encode_value(
+        user.oauth_token,
+        app.config.get('AUTH_SALT')
+    )
+    if token != posted_auth_token:
+        return jsonify({'error': 'Auth Error'})
 
     try:
         definition = db.session.query(Definition).filter_by(id=definition_id).one()
@@ -329,7 +364,15 @@ def vote(definition_id):
     try:
         user = db.session.query(User).filter_by(twitter_id=body.get('userId')).one()
     except NoResultFound as ex:
-        return jsonify({'error': 'User does not exist'})
+        return jsonify({'error': 'Auth Error'})
+
+    posted_auth_token = body.get('authToken')
+    token = encode_value(
+        user.oauth_token,
+        app.config.get('AUTH_SALT')
+    )
+    if token != posted_auth_token:
+        return jsonify({'error': 'Auth Error'})
 
     try:
         vote = db.session.query(Vote).filter_by(definition_id=definition.id).\
@@ -344,6 +387,44 @@ def vote(definition_id):
     db.session.commit()
 
     return jsonify({'vote': { 'id': vote.id}})
+
+@app.route('/search/<term>', methods=['GET'])
+def search(term):
+    exact_match = None
+    try:
+        exact_match = db.session.query(Word).filter_by(title=term).one().as_dict()
+    except:
+        pass
+
+    titles_like = []
+    try:
+        words = db.session.query(Word).filter(Word.title.ilike('%{0}%'.format(term))).all()
+        for word in words:
+            titles_like.append(word.as_dict())
+    except:
+        pass
+
+    matching_definitions = []
+    try:
+        definitions = db.session.query(Definition).join(Word).\
+                filter(Word.title.ilike('%{0}%'.format(term))).all()
+        for definition in definitions:
+            eprint(definition.word)
+            def_word = definition.word
+            word_dict = def_word.as_dict()
+            # definition.= def_word
+            matching_definitions.append(definition.as_dict())
+    except:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        eprint(exc_value)
+        eprint(str(exc_traceback))
+
+    return jsonify({
+        'exact_match': exact_match,
+        'titles_like': titles_like,
+        'matching_definitions': matching_definitions
+    })
+
 
 
 def create_tables():

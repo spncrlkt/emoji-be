@@ -1,11 +1,11 @@
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import inspect
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 import uuid
 import datetime
 
 from database import db
-from utils import eprint
+from utils import eprint, is_emoji
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -35,6 +35,12 @@ class Word(db.Model):
 
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    @validates('title')
+    def validate_title(self, key, title):
+        if not is_emoji(title):
+            raise ValueError('Word should be a combination of up to 3 emoji')
+        return title
 
 
 class Definition(db.Model):

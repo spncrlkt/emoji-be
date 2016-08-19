@@ -2,3 +2,4 @@ DEBUG = True
 SECRET_KEY = ""
 TW_KEY = ""
 TW_SECRET = ""
+AUTH_SALT = ""
