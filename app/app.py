@@ -401,7 +401,7 @@ def search(term):
     try:
         words = db.session.query(Word).filter(Word.title.ilike('%{0}%'.format(term))).all()
         for word in words:
-            if exact_match and word.id != exact_match.id:
+            if not exact_match or exact_match.id != word.id:
                 matching_words.append(word.as_dict())
     except:
         pass
