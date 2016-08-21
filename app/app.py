@@ -14,6 +14,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
 from urllib.parse import urlparse, quote_plus
+import traceback
 
 import tweepy
 
@@ -392,37 +393,37 @@ def vote(definition_id):
 def search(term):
     exact_match = None
     try:
-        exact_match = db.session.query(Word).filter_by(title=term).one().as_dict()
+        exact_match = db.session.query(Word).filter_by(title=term).one()
     except:
         pass
 
-    titles_like = []
+    matching_words = [] if not exact_match else [exact_match.as_dict()]
     try:
         words = db.session.query(Word).filter(Word.title.ilike('%{0}%'.format(term))).all()
         for word in words:
-            titles_like.append(word.as_dict())
+            if exact_match and word.id != exact_match.id:
+                matching_words.append(word.as_dict())
     except:
         pass
 
     matching_definitions = []
     try:
         definitions = db.session.query(Definition).join(Word).\
-                filter(Word.title.ilike('%{0}%'.format(term))).all()
+                filter(Definition.definition.ilike('%{0}%'.format(term))).all()
         for definition in definitions:
-            eprint(definition.word)
             def_word = definition.word
             word_dict = def_word.as_dict()
-            # definition.= def_word
-            matching_definitions.append(definition.as_dict())
+            def_dict = definition.as_dict()
+            def_dict['word'] = word_dict
+            matching_definitions.append(def_dict)
     except:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         eprint(exc_value)
-        eprint(str(exc_traceback))
+        eprint(traceback.print_tb(exc_traceback))
 
     return jsonify({
-        'exact_match': exact_match,
-        'titles_like': titles_like,
-        'matching_definitions': matching_definitions
+        'matchingWords': matching_words,
+        'matchingDefinitions': matching_definitions
     })
 
 
