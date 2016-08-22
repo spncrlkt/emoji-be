@@ -3,18 +3,20 @@ import pprint
 import sys
 import hashlib
 
-import emoji
+import regex
+
+from emoji_unicode import emoji_unicode
 
 def is_emoji(title):
-    emojis = []
-    if len(title) < 10:
-        for char in title:
-            if char in emoji.UNICODE_EMOJI:
-                emojis.append(char)
-    else:
-        return False
+    re_emoji = regex.findall(r'.\p{Sk}+|\X', title)
 
-    if len(emojis) == 0 or len(emojis) > 3:
+    for possible_emoji in re_emoji:
+        for char in possible_emoji:
+            char_unicode = hex(ord(char))
+            if char_unicode not in emoji_unicode:
+                return False
+
+    if len(re_emoji) == 0 or len(re_emoji) > 3:
         return False
 
     return True

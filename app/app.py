@@ -23,7 +23,7 @@ from werkzeug.utils import secure_filename
 from random import random
 import math
 
-from utils import encode_value, eprint, epprint
+from utils import encode_value, eprint, epprint, is_emoji
 from database import db
 from models import User, Word, Definition, Vote
 
@@ -391,6 +391,8 @@ def vote(definition_id):
 
 @app.route('/search/<term>', methods=['GET'])
 def search(term):
+    term_is_emoji = is_emoji(term)
+
     exact_match = None
     try:
         exact_match = db.session.query(Word).filter_by(title=term).one()
@@ -422,6 +424,7 @@ def search(term):
         eprint(traceback.print_tb(exc_traceback))
 
     return jsonify({
+        'isEmoji': term_is_emoji,
         'matchingWords': matching_words,
         'matchingDefinitions': matching_definitions
     })

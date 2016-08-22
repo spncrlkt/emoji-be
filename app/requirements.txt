@@ -7,4 +7,4 @@ requests==2.10.0
 Flask-OAuthlib==0.9.3
 Flask-Cors==2.1.2
 tweepy==3.5.0
-emoji==0.3.9
+regex==2016.07.21
