@@ -234,12 +234,18 @@ def get_users():
 
 @app.route('/word/<title>')
 def get_word(title):
+    if not is_emoji(title):
+        return jsonify({'error': 'Title must be a combination of up to 3 emoji'})
+
     try:
         word = db.session.query(Word).\
             options(joinedload('definitions')).\
             filter_by(title=title).one()
     except NoResultFound as ex:
-        return jsonify({'error': 'Word does not exist'})
+        word = Word()
+        word.title = title
+        db.session.add(word)
+        db.session.commit()
 
     res_word = word.as_dict()
 
@@ -264,12 +270,17 @@ def get_word(title):
 
         return formatted
 
-    definitions = {}
+    definitions = []
     for definition in word.definitions:
         formatted = format_definition(definition)
-        definitions[definition.id] = formatted
+        definitions.append(formatted)
 
-    res_word['definitions'] = definitions
+    def def_comp(definition):
+        return definition['upvotes'] - definition['downvotes']
+
+    sorted_definitions = sorted(definitions, key=def_comp, reverse=True)
+
+    res_word['definitions'] = sorted_definitions
     return jsonify({ 'word': res_word })
 
 @app.route('/word/<title>/definition', methods=['POST'])
@@ -392,21 +403,29 @@ def vote(definition_id):
 @app.route('/search/<term>', methods=['GET'])
 def search(term):
     term_is_emoji = is_emoji(term)
+    matching_words = []
 
-    exact_match = None
-    try:
-        exact_match = db.session.query(Word).filter_by(title=term).one()
-    except:
-        pass
+    if term_is_emoji:
+        try:
+            match_object = db.session.query(Word).filter_by(title=term).one()
+            exact_match = match_object.as_dict()
+        except:
+            exact_match = {
+                'id': None,
+                'title': term
+            }
 
-    matching_words = [] if not exact_match else [exact_match.as_dict()]
-    try:
-        words = db.session.query(Word).filter(Word.title.ilike('%{0}%'.format(term))).all()
-        for word in words:
-            if not exact_match or exact_match.id != word.id:
-                matching_words.append(word.as_dict())
-    except:
-        pass
+        matching_words = [exact_match]
+
+        try:
+            words = db.session.query(Word).filter(
+                        Word.title.ilike('%{0}%'.format(term))
+                    ).all()
+            for word in words:
+                if not exact_match or exact_match.id != word.id:
+                    matching_words.append(word.as_dict())
+        except:
+            pass
 
     matching_definitions = []
     try:

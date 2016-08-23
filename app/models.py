@@ -11,7 +11,7 @@ class User(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
-    twitter_id = db.Column(db.Integer, index=True, unique=True)
+    twitter_id = db.Column(db.Text, index=True, unique=True)
     screen_name = db.Column(db.Text)
     name = db.Column(db.Text)
     profile_image_url = db.Column(db.Text)

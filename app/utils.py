@@ -13,6 +13,7 @@ def is_emoji(title):
     for possible_emoji in re_emoji:
         for char in possible_emoji:
             char_unicode = hex(ord(char))
+            eprint(char_unicode)
             if char_unicode not in emoji_unicode:
                 return False
 
