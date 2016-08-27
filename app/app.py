@@ -234,31 +234,6 @@ def add_word(word):
         except ValueError as ex:
             return jsonify({'error': str(ex)})
 
-@app.route('/words')
-def get_words():
-    words = Word.query.all()
-    res = []
-    for word in words:
-        word_res = {}
-        word_res['id'] = word.id
-        word_res['title'] = word.title
-        word_res['definitions'] = list(map(lambda x : x.as_dict(), word.definitions))
-        res.append(word_res)
-
-    return jsonify({'words': res})
-
-@app.route('/users')
-def get_users():
-    users = User.query.all()
-    res = []
-    for user in users:
-        user_res = {}
-        user_res['id'] = user.twitter_id
-        user_res['name'] = user.name
-        res.append(user_res)
-
-    return jsonify({'users': res})
-
 @app.route('/word/<title>')
 def get_word(title):
     if not is_emoji(title):
@@ -476,8 +451,6 @@ def search(term):
         'matchingWords': matching_words,
         'matchingDefinitions': matching_definitions
     })
-
-
 
 def create_tables():
     db.create_all()
