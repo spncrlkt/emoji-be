@@ -157,6 +157,33 @@ def oauthorized():
             token + '/' + quote_plus(client_next_route)
     return redirect(next_url)
 
+@app.route('/home')
+def home():
+    new_words = db.session.query(Word).order_by(Word.id.desc()).limit(10).all()
+    new_words_list = []
+    for word in new_words:
+        word_res = {}
+        word_res['id'] = word.id
+        word_res['title'] = word.title
+        new_words_list.append(word_res)
+
+
+    new_defs = db.session.query(Definition).join(Word).\
+            order_by(Definition.id.desc()).limit(10).all()
+    new_defs_list= []
+    for definition in new_defs:
+        def_word = definition.word
+        word_dict = def_word.as_dict()
+        def_dict = definition.as_dict()
+        def_dict['word'] = word_dict
+        new_defs_list.append(def_dict)
+
+    return jsonify({
+        'newWords': new_words_list,
+        'newDefs': new_defs_list
+    })
+
+
 @app.route('/user/<id>/<auth_token>')
 def user(id, auth_token):
     error = None
@@ -422,10 +449,12 @@ def search(term):
                         Word.title.ilike('%{0}%'.format(term))
                     ).all()
             for word in words:
-                if not exact_match or exact_match.id != word.id:
+                if not exact_match or ( exact_match.get('id') != word.id ):
                     matching_words.append(word.as_dict())
         except:
-            pass
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            eprint(exc_value)
+            eprint(traceback.print_tb(exc_traceback))
 
     matching_definitions = []
     try:
